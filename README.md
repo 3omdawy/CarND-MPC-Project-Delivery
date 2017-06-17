@@ -109,7 +109,7 @@ ptsy[i] = (-x * sin(psi) + y * cos(psi));
 * Consequently, `x`, `y`, and `psi` are always 0 in the state vector passed to MPC solver
 
 ## Adding Latency
-* To account for 100ms latency between prediction and applying of controls, the idea of xperroni in the [forum](https://discussions.udacity.com/t/how-to-take-into-account-latency-of-the-system/248671/13) was done by taking the model outputs at t + 1 not at t. Since `dt` = 0.1, t + 1 is t + 100ms
+* To account for 100ms latency between prediction and applying of controls, the idea in main.cpp is to provide the model with predicted outputs after 100ms
 
 ## Did it work?
 * Honestly on my machine it did not work. I posted [this](https://discussions.udacity.com/t/stuck-moving-in-circles/272063/22) on forum, applied all the known solutions to me but nothing worked. I also got some code on Github from students that completed the project and also did not work on my laptop. I think my laptop may be the reason because it is extremely slow.
