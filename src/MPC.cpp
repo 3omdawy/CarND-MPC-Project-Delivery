@@ -1,6 +1,6 @@
 #include "MPC.h"
-#include <cppad/cppad.hpp> // EAS: Replaced <> with "" to include files in CppAd directory
-#include <cppad/ipopt/solve.hpp> // EAS: Replaced <> with "" to include files in CppAd directory
+#include "cppad/cppad.hpp" // EAS: Replaced <> with "" to include files in CppAd directory
+#include "cppad/ipopt/solve.hpp" // EAS: Replaced <> with "" to include files in CppAd directory
 #include "Eigen-3.3/Eigen/Core"
 
 using CppAD::AD;
@@ -22,7 +22,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Both the reference cross track and orientation errors are 0.
-double ref_v = 100;//85;//40;
+double ref_v = 40 * 0.44704;//85;//40;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -55,7 +55,7 @@ class FG_eval {
 	  // The part of the cost based on the reference state.
 	  for (int t = 0; t < N; t++) {
 		  //fg[0] += 2000 * CppAD::pow(vars[cte_start + t], 2);
-		  fg[0] += 4000 * CppAD::pow(vars[cte_start + t], 2);
+		  fg[0] += CppAD::pow(vars[cte_start + t], 2);
 		  //fg[0] += 2000 * CppAD::pow(vars[epsi_start + t], 2);
 		  fg[0] += CppAD::pow(vars[epsi_start + t], 2);
 		  fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
@@ -64,7 +64,7 @@ class FG_eval {
 	  // Minimize the use of actuators.
 	  for (int t = 0; t < N - 1; t++) {
 		  //fg[0] += 5 * CppAD::pow(vars[delta_start + t], 2);
-		  fg[0] += 80000 * CppAD::pow(vars[delta_start + t], 2);
+		  fg[0] += CppAD::pow(vars[delta_start + t], 2);
 		  //fg[0] += 5 * CppAD::pow(vars[a_start + t], 2);
 		  fg[0] += CppAD::pow(vars[a_start + t], 2);
 	  }
@@ -72,7 +72,7 @@ class FG_eval {
 	  // Minimize the value gap between sequential actuations.
 	  for (int t = 0; t < N - 2; t++) {
 		  //fg[0] += 200 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-		  fg[0] += 1000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+		  fg[0] += 500 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
 		  //fg[0] += 10 * CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
 		  fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
 	  }
@@ -134,7 +134,7 @@ class FG_eval {
 		  // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
 		  fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
 		  fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-		  fg[1 + psi_start + t] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
+		  fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
 		  fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
 		  fg[1 + cte_start + t] =
 			  cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
@@ -178,12 +178,12 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
     vars[i] = 0;
   }
   // Set the initial variable values
-  vars[x_start] = x;
+  /*vars[x_start] = x;
   vars[y_start] = y;
   vars[psi_start] = psi;
   vars[v_start] = v;
   vars[cte_start] = cte;
-  vars[epsi_start] = epsi;
+  vars[epsi_start] = epsi;*/
 
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
@@ -239,7 +239,7 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   // options for IPOPT solver
   std::string options;
   // Uncomment this if you'd like more print information
-  options += "Integer print_level  0\n";
+  //options += "Integer print_level  0\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
   // of sparse routines, this makes the computation MUCH FASTER. If you
   // can uncomment 1 of these and see if it makes a difference or not but
@@ -249,7 +249,7 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  options += "Numeric max_cpu_time          0.5\n";
+  //options += "Numeric max_cpu_time          0.5\n";
 
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
@@ -278,8 +278,8 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   vector<double> result;
   //result.push_back((solution.x[delta_start] + solution.x[delta_start + 1]) / 2);
   //result.push_back((solution.x[a_start] + solution.x[a_start + 1]) / 2);
-  result.push_back(solution.x[delta_start + 1]);
-  result.push_back(solution.x[a_start + 1]);
+  result.push_back(solution.x[delta_start ]);
+  result.push_back(solution.x[a_start ]);
   for (int i = 0; i < N - 1; i++)
   {
 	  result.push_back(solution.x[x_start + i + 1]);

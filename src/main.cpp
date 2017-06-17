@@ -1,6 +1,6 @@
 #define _USE_MATH_DEFINES // Needed for include of math.h
 #include <math.h>
-#include <uWS/uWS.h> // EAS: Replaced <> with "" to include files in uWS directory
+#include "uWS/uWS.h" // EAS: Replaced <> with "" to include files in uWS directory
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -23,19 +23,17 @@ double rad2deg(double x) { return x * 180 / pi(); }
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
-std::stringstream hasData(std::string s) {
+string hasData(string s) {
 	auto found_null = s.find("null");
 	auto b1 = s.find_first_of("[");
-	auto b2 = s.find_last_of("]");
-	if (found_null != std::string::npos) {
-		return std::stringstream();
+	auto b2 = s.rfind("}]");
+	if (found_null != string::npos) {
+		return "";
 	}
-	else if (b1 != std::string::npos && b2 != std::string::npos) {
-		std::stringstream tmp = std::stringstream();
-		tmp.str(s.substr(b1, b2 - b1 + 1));
-		return tmp;
+	else if (b1 != string::npos && b2 != string::npos) {
+		return s.substr(b1, b2 - b1 + 2);
 	}
-	return std::stringstream();
+	return "";
 }
 
 // Evaluate a polynomial.
@@ -85,11 +83,11 @@ int main() {
     string sdata = string(data).substr(0, length);
     cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
-			auto s = hasData(std::string(data));
-			if (s.str() != "") {
-        auto j = json::parse(s);
-				std::string event = j[0].get<std::string>();
-        if (event == "telemetry") {
+		string s = hasData(sdata);
+		if (s != "") {
+			auto j = json::parse(s);
+			string event = j[0].get<string>();
+			if (event == "telemetry") {
           // j[1] is the data JSON object
 			// EAS: use Eigen vector instead of normal vector so that polyfit works
 			vector<double> ptsx = j[1]["ptsx"];
@@ -98,16 +96,11 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-		  /*double delta = j[1]["steering_angle"];
+		  // Convert from mph to m/s
+		  v = v * 0.44704;
+		  double delta = j[1]["steering_angle"];
+		  delta *= -1;
 		  double acceleration = j[1]["throttle"];
-
-
-		  // predict state in 100ms
-		  double latency = 0.1;
-		  px = px + v*cos(psi)*latency;
-		  py = py + v*sin(psi)*latency;
-		  psi = psi + v*delta / 2.67*latency;
-		  v = v + acceleration*latency;*/
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -146,13 +139,29 @@ int main() {
 		  Eigen::VectorXd state(6);
 		  //state << px, py, psi, v, cte, epsi;
 
+		  // Recall the equations for the model:
+		  // x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+		  // y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+		  // psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+		  // v_[t+1] = v[t] + a[t] * dt
+		  // cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+		  // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
 		  // state in vehicle coordinates: x,y and orientation are always zero
-		  //state << px, py, psi, v, cte, epsi;
-		  state << 0, 0, 0, v, cte, epsi;
+		  // predict state in 100ms
+		  double latency = 0.1;
+		  double f0 = coeffs[0] + coeffs[1] * px + coeffs[2] * px*px + coeffs[3] * px*px*px;
+		  double psides0 = atan(coeffs[1] + 2 * coeffs[2] * px + 3 * coeffs[3] * px*px);
+		  cte = f0 - py + v * sin(epsi) * latency;
+		  epsi = -psides0 * v * delta * latency / 2.67;
+		  px = v*latency;
+		  py = 0 ;
+		  psi = v*delta / 2.67*latency;
+		  v = v + acceleration*latency;
+		  state << px, py, psi, v, cte, epsi;
 
 		  auto vars = mpc.Solve(state, coeffs);
 		  
-		  double steer_value = vars[0] ;
+		  double steer_value = -vars[0] ;
           double throttle_value = vars[1];
 
           json msgJson;
